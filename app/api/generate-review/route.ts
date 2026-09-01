@@ -1,72 +1,64 @@
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const {
-      experienceType,
-      details,
-      topics,
-      businessName,
-    } = body;
+    const businessName = body.businessName || "this business";
+    const rating = Number(body.rating) || 5;
+    const keywords = Array.isArray(body.keywords) ? body.keywords : [];
 
-    if (!details?.trim()) {
-      return NextResponse.json(
-        { error: "Please provide your experience details." },
-        { status: 400 }
-      );
+    let review = "";
+
+    if (rating >= 5) {
+      review = `I had a wonderful experience at ${businessName}.`;
+
+      if (keywords.length > 0) {
+        review += ` I especially appreciated the ${keywords.join(", ")}.`;
+      }
+
+      review +=
+        " The service was excellent and the overall experience was very enjoyable. I would definitely recommend this place to others.";
+    } else if (rating >= 4) {
+      review = `I had a good experience at ${businessName}.`;
+
+      if (keywords.length > 0) {
+        review += ` I liked the ${keywords.join(", ")}.`;
+      }
+
+      review +=
+        " Overall, the experience was positive and I would be happy to visit again.";
+    } else if (rating >= 3) {
+      review = `My experience at ${businessName} was okay overall.`;
+
+      if (keywords.length > 0) {
+        review += ` I noticed the ${keywords.join(", ")}.`;
+      }
+
+      review +=
+        " There are some things that could be improved, but I appreciate the effort of the team.";
+    } else {
+      review = `My experience at ${businessName} was not completely satisfactory.`;
+
+      if (keywords.length > 0) {
+        review += ` My main concerns were related to ${keywords.join(", ")}.`;
+      }
+
+      review +=
+        " I hope the business can use this feedback to improve the customer experience.";
     }
 
-    const isPositive =
-      experienceType === "excellent" ||
-      experienceType === "good";
-
-    const prompt = isPositive
-      ? `Write a natural, authentic Google review draft for ${businessName || "this business"}.
-
-Customer experience: ${experienceType}
-Topics mentioned: ${topics?.join(", ") || "none"}
-Customer notes: ${details}
-
-Rules:
-- Use only the customer's real experience.
-- Do not invent facts.
-- Keep it natural and concise.
-- Do not exaggerate.
-- Return only the review text.`
-      : `Rewrite this customer's private feedback constructively for ${businessName || "this business"}.
-
-Experience: ${experienceType}
-Topics mentioned: ${topics?.join(", ") || "none"}
-Customer notes: ${details}
-
-Rules:
-- Be respectful and constructive.
-- Use only the customer's real experience.
-- Do not invent facts.
-- Keep it concise.
-- Return only the feedback text.`;
-
-    const response = await openai.responses.create({
-      model: "gpt-5.6-luna",
-      input: prompt,
-    });
-
     return NextResponse.json({
-      review: response.output_text,
+      review,
     });
-  } catch (error) {
-    console.error("AI generation error:", error);
-
+  } catch {
     return NextResponse.json(
-      { error: "Unable to generate the review right now." },
-      { status: 500 }
+      {
+        error: "Failed to generate review",
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
