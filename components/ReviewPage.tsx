@@ -63,10 +63,10 @@ export default function ReviewPage({
           </div>
 
           <AIReviewAssistant
-            businessName={business.name}
-            googleReviewUrl={business.googleReviewUrl}
-          />
-
+  businessName={business.name}
+  googleReviewUrl={business.googleReviewUrl}
+  whatsapp={business.whatsapp}
+/>
           <a
             href={business.googleReviewUrl}
             target="_blank"

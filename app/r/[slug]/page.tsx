@@ -1,5 +1,5 @@
 import ReviewPage from "@/components/ReviewPage";
-import { businesses } from "@/data/businesses";
+import { supabase } from "@/lib/supabase";
 
 export default async function BusinessPage({
   params,
@@ -8,9 +8,13 @@ export default async function BusinessPage({
 }) {
   const { slug } = await params;
 
-  const business = businesses[slug as keyof typeof businesses];
+  const { data: business, error } = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("slug", slug)
+    .single();
 
-  if (!business) {
+  if (error || !business) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black text-white">
         <h1 className="text-2xl font-bold">Business not found</h1>

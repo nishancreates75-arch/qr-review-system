@@ -26,9 +26,11 @@ function pickMany<T>(items: T[], count: number): T[] {
 export default function AIReviewAssistant({
   businessName,
   googleReviewUrl,
+  whatsapp,
 }: {
   businessName: string;
   googleReviewUrl: string;
+  whatsapp: string;
 }) {
   const [rating, setRating] = useState(75);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
@@ -241,10 +243,14 @@ export default function AIReviewAssistant({
   }
 
   function createReview() {
-  if (!isPositive) {
-    window.location.href = "/feedback";
-    return;
-  }
+ if (!isPositive) {
+  const feedbackUrl = `/feedback?business=${encodeURIComponent(
+    businessName
+  )}&whatsapp=${encodeURIComponent(whatsapp)}`;
+
+  window.location.href = feedbackUrl;
+  return;
+}
 
   const review = createPositiveReview();
   setResult(review);
