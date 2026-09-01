@@ -1,9 +1,9 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
-export default function FeedbackPage() {
+function FeedbackContent() {
   const searchParams = useSearchParams();
 
   const business = searchParams.get("business") || "the business";
@@ -69,7 +69,6 @@ ${message.trim() || "No additional message provided."}
 
       <div className="relative z-10 flex min-h-screen items-center justify-center">
         <div className="w-full max-w-md rounded-[32px] border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
-
           <div className="text-center">
             <p className="text-xs font-bold tracking-[0.3em] text-cyan-300">
               PRIVATE FEEDBACK
@@ -129,5 +128,19 @@ ${message.trim() || "No additional message provided."}
         </div>
       </div>
     </main>
+  );
+}
+
+export default function FeedbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-black text-white">
+          Loading feedback...
+        </main>
+      }
+    >
+      <FeedbackContent />
+    </Suspense>
   );
 }
