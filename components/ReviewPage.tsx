@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import AIReviewAssistant from "./AIReviewAssistant";
 
 type Business = {
@@ -8,8 +11,11 @@ type Business = {
   whatsapp: string;
   mapsUrl: string;
   instagramUrl: string;
+  facebookUrl: string;
+  tiktokUrl: string;
   menuUrl: string;
   theme: string;
+  logoUrl?: string;
 };
 
 export default function ReviewPage({
@@ -17,111 +23,248 @@ export default function ReviewPage({
 }: {
   business: Business;
 }) {
+  const [rating, setRating] = useState(0);
+
+  const ratingText =
+    rating === 0
+      ? "Tap a star to rate"
+      : rating === 1
+      ? "We're sorry to hear that"
+      : rating === 2
+      ? "Thank you for your feedback"
+      : rating === 3
+      ? "Thanks for sharing your experience"
+      : rating === 4
+      ? "We're glad you enjoyed your visit!"
+      : "Amazing! Thank you so much!";
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-black text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1e3a8a,transparent_35%),radial-gradient(circle_at_bottom_right,#7c3aed,transparent_30%),radial-gradient(circle_at_bottom_left,#06b6d4,transparent_25%)]" />
+    <main className="min-h-screen bg-[#f3f5f1] text-[#1f2d25]">
+      {/* HERO */}
+      <section className="relative overflow-hidden bg-[#102b1d] px-5 pb-28 pt-12 text-white">
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute left-0 top-0 h-full w-full bg-[radial-gradient(circle_at_top,#547a5d,transparent_55%)]" />
+        </div>
 
-      <div className="absolute -top-20 -left-20 h-72 w-72 animate-pulse rounded-full bg-blue-500/30 blur-3xl" />
-      <div className="absolute top-1/3 -right-20 h-72 w-72 animate-pulse rounded-full bg-purple-500/30 blur-3xl" />
-      <div className="absolute -bottom-20 left-1/4 h-72 w-72 animate-pulse rounded-full bg-cyan-400/20 blur-3xl" />
-
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-5">
-        <div className="w-full max-w-md rounded-[32px] border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
-
-          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl border border-cyan-300/40 bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 text-5xl shadow-2xl">
-            🏨
+        <div className="relative mx-auto max-w-md text-center">
+          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white/80 bg-[#1d4a31] shadow-xl">
+            {business.logoUrl ? (
+              <img
+                src={business.logoUrl}
+                alt={`${business.name} logo`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-4xl">🌿</span>
+            )}
           </div>
 
-          <div className="text-center">
-            <p className="text-xs tracking-[0.35em] text-cyan-300">
-              WELCOME TO
+          <h1 className="text-4xl font-bold tracking-tight">
+            {business.name}
+          </h1>
+
+          <p className="mt-3 text-sm tracking-wide text-white/75">
+            Thank you for visiting us
+          </p>
+
+          {business.location && (
+            <p className="mt-4 text-sm text-white/80">
+              📍 {business.location}
             </p>
+          )}
+        </div>
+      </section>
 
-            <h1 className="mt-2 text-4xl font-black">
-              {business.name}
-            </h1>
-
-            <p className="mt-2 text-sm text-white/60">
-              {business.location}
-            </p>
-          </div>
-
-          <div className="my-7 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-
-          <div className="text-center">
-            <h2 className="text-xl font-bold">
-              HOW WAS YOUR EXPERIENCE?
+      {/* MAIN CARD */}
+      <div className="relative z-10 mx-auto -mt-16 w-full max-w-md px-4 pb-10">
+        <div className="rounded-[30px] border border-black/5 bg-white p-6 shadow-xl">
+          {/* RATING */}
+          <section className="text-center">
+            <h2 className="text-2xl font-bold text-[#1f2d25]">
+              How was your experience?
             </h2>
 
-            <p className="mt-3 text-sm leading-6 text-white/70">
-              Thank you for visiting us. We'd love to hear about your experience.
+            <p className="mt-2 text-sm text-[#647067]">
+              Your feedback helps us serve you better.
             </p>
-          </div>
 
-          <div className="my-6 text-center text-3xl">
-            ⭐ ⭐ ⭐ ⭐ ⭐
-          </div>
+            <div className="mt-7 flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  className={`text-4xl transition duration-200 hover:scale-110 ${
+                    star <= rating
+                      ? "text-[#e5a21a]"
+                      : "text-[#d7ddd8]"
+                  }`}
+                  aria-label={`Rate ${star} stars`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
 
-          <AIReviewAssistant
-  businessName={business.name}
-  googleReviewUrl={business.googleReviewUrl}
-  whatsapp={business.whatsapp}
-/>
-          <a
-            href={business.googleReviewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 block rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 px-6 py-4 text-center font-bold text-white shadow-lg"
-          >
-            ⭐ LEAVE A GOOGLE REVIEW
-          </a>
+            <p className="mt-4 text-sm font-medium text-[#66736a]">
+              {ratingText}
+            </p>
+          </section>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          {/* AI REVIEW */}
+          <section className="mt-8 rounded-3xl border border-[#dfe6df] bg-[#f8faf7] p-4">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e7efe8] text-xl">
+                ✨
+              </div>
+
+              <div>
+                <h3 className="font-bold text-[#203126]">
+                  AI Review Assistant
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-[#68746c]">
+                  Share a few details and AI will help you write your
+                  review.
+                </p>
+              </div>
+            </div>
+
+            <AIReviewAssistant
+              businessName={business.name}
+              googleReviewUrl={business.googleReviewUrl}
+              whatsapp={business.whatsapp}
+            />
+          </section>
+
+          {/* GOOGLE REVIEW */}
+          {business.googleReviewUrl && (
             <a
-              href={business.menuUrl}
+              href={business.googleReviewUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-2xl border border-white/20 bg-white/10 p-4 text-center font-semibold"
+              className="mt-5 flex items-center justify-center gap-3 rounded-2xl bg-[#1f4a31] px-5 py-4 text-center font-bold text-white transition hover:bg-[#163a25]"
             >
-              🍽️ View Menu
-            </a>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm">
+                G
+              </span>
 
-            <a
-              href={business.mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-2xl border border-white/20 bg-white/10 p-4 text-center font-semibold"
-            >
-              📍 Find Us
+              Write Review on Google
             </a>
+          )}
 
-            <a
-              href={business.instagramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-2xl border border-white/20 bg-white/10 p-4 text-center font-semibold"
-            >
-              📸 Instagram
-            </a>
+          <p className="mt-3 text-center text-xs text-[#7b857e]">
+            🔒 Your review goes directly to Google
+          </p>
 
-            <a
-              href={`tel:${business.phone}`}
-              className="rounded-2xl border border-white/20 bg-white/10 p-4 text-center font-semibold"
-            >
-              📞 Call Us
-            </a>
-          </div>
+          {/* QUICK ACTIONS */}
+          <section className="mt-7 grid grid-cols-4 divide-x divide-[#dfe5df] rounded-2xl border border-[#e2e7e2] bg-[#fafcf9]">
+            {business.menuUrl && (
+              <a
+                href={business.menuUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-2 px-2 py-4 text-xs font-medium text-[#314137]"
+              >
+                <span className="text-xl">📖</span>
+                Menu
+              </a>
+            )}
 
+            {business.mapsUrl && (
+              <a
+                href={business.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-2 px-2 py-4 text-xs font-medium text-[#314137]"
+              >
+                <span className="text-xl">📍</span>
+                Directions
+              </a>
+            )}
+
+            {business.phone && (
+              <a
+                href={`tel:${business.phone}`}
+                className="flex flex-col items-center gap-2 px-2 py-4 text-xs font-medium text-[#314137]"
+              >
+                <span className="text-xl">☎️</span>
+                Call
+              </a>
+            )}
+
+            {business.instagramUrl && (
+              <a
+                href={business.instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-2 px-2 py-4 text-xs font-medium text-[#314137]"
+              >
+                <span className="text-xl">◎</span>
+                Instagram
+              </a>
+            )}
+          </section>
+
+          {/* PRIVATE FEEDBACK */}
           <a
             href={`/feedback?business=${encodeURIComponent(
               business.name
-            )}&whatsapp=${business.whatsapp}`}
-            className="mt-4 block w-full rounded-2xl border border-cyan-300/30 bg-white/5 px-5 py-3 text-center font-semibold text-cyan-200"
+            )}&whatsapp=${encodeURIComponent(
+              business.whatsapp || ""
+            )}`}
+            className="mt-6 flex items-center justify-between rounded-2xl border border-[#dfe5df] bg-[#fafcf9] px-5 py-4 transition hover:bg-[#f1f5f0]"
           >
-            💬 SEND PRIVATE FEEDBACK
-          </a>
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8f0e9] text-lg">
+                🔒
+              </div>
 
+              <div>
+                <p className="font-semibold text-[#26352c]">
+                  Private feedback
+                </p>
+
+                <p className="mt-1 text-xs text-[#748078]">
+                  Help us improve — only visible to our team
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xl text-[#738077]">›</span>
+          </a>
         </div>
+
+        {/* SOCIAL LINKS */}
+        {(business.facebookUrl || business.tiktokUrl) && (
+          <div className="mt-5 flex justify-center gap-3">
+            {business.facebookUrl && (
+              <a
+                href={business.facebookUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-white px-4 py-3 text-sm font-medium shadow-sm"
+              >
+                Facebook
+              </a>
+            )}
+
+            {business.tiktokUrl && (
+              <a
+                href={business.tiktokUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-white px-4 py-3 text-sm font-medium shadow-sm"
+              >
+                TikTok
+              </a>
+            )}
+          </div>
+        )}
+
+        <p className="mt-7 text-center text-xs text-[#849087]">
+          Thank you for supporting local businesses
+        </p>
       </div>
     </main>
   );
