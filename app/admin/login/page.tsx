@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAuthClient } from "@/lib/supabase/auth-client";
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -13,32 +13,38 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function handleLogin(event: FormEvent) {
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setLoading(true);
     setMessage("");
 
-    const supabase = createAuthClient();
+    try {
+      const supabase = createAuthClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) {
-      console.error(error);
+      if (error) {
+        console.error("LOGIN ERROR:", error);
 
-      setMessage("Invalid email or password. Please try again.");
+        setMessage("Invalid email or password. Please try again.");
+        setLoading(false);
+        return;
+      }
 
+      const redirect = searchParams.get("redirect") || "/admin";
+
+      router.push(redirect);
+      router.refresh();
+    } catch (error) {
+      console.error("UNEXPECTED LOGIN ERROR:", error);
+
+      setMessage("Something went wrong. Please try again.");
       setLoading(false);
-      return;
     }
-
-    const redirect = searchParams.get("redirect") || "/admin";
-
-    router.push(redirect);
-    router.refresh();
   }
 
   return (
@@ -175,5 +181,21 @@ function Feature({
         {description}
       </p>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#09090f] text-white">
+          <div className="text-sm text-white/50">
+            Loading admin login...
+          </div>
+        </main>
+      }
+    >
+      <AdminLoginForm />
+    </Suspense>
   );
 }
