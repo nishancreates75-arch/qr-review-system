@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type Business = {
   id: string;
   name: string;
+  owner_name: string | null;
   slug: string;
   location: string;
   whatsapp: string | null;
@@ -19,33 +19,48 @@ type Business = {
   business_type: string | null;
   theme: string | null;
   logo_url: string | null;
-  created_at?: string;
+  created_at: string;
 };
 
 const businessTypes = [
-  "All",
   "Restaurant",
-  "Hotel",
-  "Lodge / Inn",
   "Cafe",
-  "Kirana Pasal",
-  "Travel Agency",
-  "Shop",
+  "Hotel",
+  "Lodge",
   "Salon",
+  "Spa",
+  "Travel",
+  "Shop",
+  "Kirana",
   "Pharmacy",
   "Clinic",
   "Other",
 ];
 
+const themes = [
+  "professional",
+  "luxury",
+  "minimal",
+  "warm",
+  "futuristic",
+  "nature",
+  "elegant",
+  "modern",
+  "dark",
+  "colorful",
+];
+
 export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [message, setMessage] = useState("");
+
   const [editingBusiness, setEditingBusiness] =
     useState<Business | null>(null);
+
   const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   async function loadBusinesses() {
     setLoading(true);
@@ -54,11 +69,18 @@ export default function BusinessesPage() {
     const { data, error } = await supabase
       .from("businesses")
       .select("*")
-      .order("name", { ascending: true });
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(error);
-      setMessage(`Error loading businesses: ${error.message}`);
+      console.error("LOAD BUSINESSES ERROR:", error);
+
+      const errorMessage =
+        error.message ||
+        error.details ||
+        error.hint ||
+        "Unable to load businesses.";
+
+      setMessage(`Error loading businesses: ${errorMessage}`);
       setLoading(false);
       return;
     }
@@ -72,544 +94,799 @@ export default function BusinessesPage() {
   }, []);
 
   const filteredBusinesses = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return businesses;
+    }
+
     return businesses.filter((business) => {
-      const searchText = search.toLowerCase();
-
-      const matchesSearch =
-        business.name.toLowerCase().includes(searchText) ||
-        business.location.toLowerCase().includes(searchText) ||
-        (business.business_type || "")
-          .toLowerCase()
-          .includes(searchText);
-
-      const matchesType =
-        typeFilter === "All" ||
-        business.business_type === typeFilter;
-
-      return matchesSearch && matchesType;
+      return (
+        business.name?.toLowerCase().includes(query) ||
+        business.owner_name?.toLowerCase().includes(query) ||
+        business.location?.toLowerCase().includes(query) ||
+        business.business_type?.toLowerCase().includes(query) ||
+        business.slug?.toLowerCase().includes(query)
+      );
     });
-  }, [businesses, search, typeFilter]);
+  }, [businesses, search]);
 
-  async function deleteBusiness(business: Business) {
-    const confirmed = window.confirm(
-      `Delete "${business.name}"? This cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
+  function openEdit(business: Business) {
     setMessage("");
+    setEditingBusiness({
+      ...business,
+    });
+  }
 
-    const { error } = await supabase
-      .from("businesses")
-      .delete()
-      .eq("id", business.id);
+  function closeEdit() {
+    if (saving) return;
 
-    if (error) {
-      console.error(error);
-      setMessage(`Error deleting business: ${error.message}`);
+    setEditingBusiness(null);
+    setMessage("");
+  }
+
+  async function saveBusiness() {
+    if (!editingBusiness) return;
+
+    const name = editingBusiness.name?.trim();
+    const location = editingBusiness.location?.trim();
+
+    if (!name) {
+      setMessage("Business name is required.");
       return;
     }
 
-    setBusinesses((currentBusinesses) =>
-      currentBusinesses.filter((item) => item.id !== business.id)
-    );
-
-    setMessage(`${business.name} was deleted successfully.`);
-  }
-
-  async function saveBusiness(event: React.FormEvent) {
-    event.preventDefault();
-
-    if (!editingBusiness) return;
+    if (!location) {
+      setMessage("Location is required.");
+      return;
+    }
 
     setSaving(true);
     setMessage("");
 
+    const updateData = {
+      name,
+
+      owner_name:
+        editingBusiness.owner_name?.trim() || null,
+
+      location,
+
+      whatsapp:
+        editingBusiness.whatsapp?.trim() || null,
+
+      google_review_url:
+        editingBusiness.google_review_url?.trim() || null,
+
+      maps_url:
+        editingBusiness.maps_url?.trim() || null,
+
+      instagram_url:
+        editingBusiness.instagram_url?.trim() || null,
+
+      facebook_url:
+        editingBusiness.facebook_url?.trim() || null,
+
+      tiktok_url:
+        editingBusiness.tiktok_url?.trim() || null,
+
+      menu_url:
+        editingBusiness.menu_url?.trim() || null,
+
+      business_type:
+        editingBusiness.business_type || "Other",
+
+      theme:
+        editingBusiness.theme || "professional",
+
+      logo_url:
+        editingBusiness.logo_url?.trim() || null,
+    };
+
+    console.log("UPDATING BUSINESS:", {
+      id: editingBusiness.id,
+      data: updateData,
+    });
+
+    /*
+     * IMPORTANT:
+     *
+     * Do NOT use:
+     *
+     * .select()
+     * .single()
+     *
+     * here.
+     *
+     * The previous version failed with:
+     *
+     * PGRST116
+     * "The result contains 0 rows"
+     *
+     * The dashboard only needs to perform the update.
+     * After that, we reload the businesses from Supabase.
+     */
+
     const { error } = await supabase
       .from("businesses")
-      .update({
-        name: editingBusiness.name.trim(),
-        location: editingBusiness.location.trim(),
-        whatsapp: editingBusiness.whatsapp || null,
-        google_review_url:
-          editingBusiness.google_review_url || null,
-        maps_url: editingBusiness.maps_url || null,
-        instagram_url:
-          editingBusiness.instagram_url || null,
-        facebook_url:
-          editingBusiness.facebook_url || null,
-        tiktok_url: editingBusiness.tiktok_url || null,
-        menu_url: editingBusiness.menu_url || null,
-        business_type:
-          editingBusiness.business_type || "Other",
-        theme: editingBusiness.theme || "professional",
-        logo_url: editingBusiness.logo_url || null,
-      })
+      .update(updateData)
       .eq("id", editingBusiness.id);
 
     if (error) {
-      console.error(error);
-      setMessage(`Error updating business: ${error.message}`);
+      const errorMessage =
+        error.message ||
+        error.details ||
+        error.hint ||
+        "Unknown Supabase error";
+
+      const errorCode =
+        error.code || "NO_CODE";
+
+      console.error(
+        "UPDATE BUSINESS FAILED",
+        errorMessage,
+        errorCode,
+        error.details,
+        error.hint
+      );
+
+      setMessage(
+        `Update failed [${errorCode}]: ${errorMessage}`
+      );
+
       setSaving(false);
       return;
     }
 
-    setMessage(
-      `${editingBusiness.name} was updated successfully.`
-    );
+    console.log("BUSINESS UPDATED SUCCESSFULLY");
+
+    setMessage("Business updated successfully.");
 
     setEditingBusiness(null);
-    setSaving(false);
 
     await loadBusinesses();
+
+    setSaving(false);
   }
 
   return (
-    <main className="min-h-screen bg-[#09090f] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10">
-        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-bold tracking-[0.3em] text-blue-400">
-              BUSINESS MANAGEMENT
-            </p>
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-slate-400">
+                Admin Dashboard
+              </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">
-              Businesses
-            </h1>
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+                Businesses
+              </h1>
 
-            <p className="mt-2 text-sm text-white/40">
-              Search, manage, edit, and organize your businesses.
-            </p>
+              <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                Manage business profiles, review links, branding,
+                themes, and QR review settings.
+              </p>
+            </div>
+
+            <a
+              href="/admin/add-business"
+              className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+            >
+              + Add Business
+            </a>
           </div>
-
-          <Link
-            href="/admin/add-business"
-            className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold transition hover:bg-blue-400"
-          >
-            + Add Business
-          </Link>
         </div>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/10 p-5 md:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="font-semibold">
-                  Business Directory
-                </h2>
+        {/* Search */}
+        <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search by business, owner, location, type, or slug..."
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+              />
+            </div>
 
-                <p className="mt-1 text-sm text-white/40">
-                  {filteredBusinesses.length} of {businesses.length}{" "}
-                  businesses
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Search businesses..."
-                  className="min-w-[220px] rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-blue-500"
-                />
-
-                <select
-                  value={typeFilter}
-                  onChange={(event) =>
-                    setTypeFilter(event.target.value)
-                  }
-                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
-                >
-                  {businessTypes.map((type) => (
-                    <option
-                      key={type}
-                      value={type}
-                      className="bg-[#11111a]"
-                    >
-                      {type === "All"
-                        ? "All Business Types"
-                        : type}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="text-sm text-slate-400">
+              {filteredBusinesses.length} business
+              {filteredBusinesses.length === 1 ? "" : "es"}
             </div>
           </div>
+        </div>
 
-          {message && (
-            <div className="border-b border-white/10 px-6 py-4">
-              <p className="text-sm text-blue-300">
-                {message}
-              </p>
-            </div>
-          )}
+        {/* Messages */}
+        {message && (
+          <div
+            className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+              message.toLowerCase().includes("success")
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : "border-red-500/30 bg-red-500/10 text-red-300"
+            }`}
+          >
+            {message}
+          </div>
+        )}
 
-          {loading ? (
-            <div className="p-12 text-center text-white/40">
-              Loading businesses...
-            </div>
-          ) : filteredBusinesses.length === 0 ? (
-            <div className="p-12 text-center">
-              <h3 className="font-semibold">
-                No businesses found
-              </h3>
+        {/* Loading */}
+        {loading && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-10 text-center text-sm text-slate-400">
+            Loading businesses...
+          </div>
+        )}
 
-              <p className="mt-2 text-sm text-white/40">
-                Try changing your search or filter.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-white/10">
-              {filteredBusinesses.map((business) => (
-                <div
-                  key={business.id}
-                  className="flex flex-col gap-5 p-5 transition hover:bg-white/[0.02] md:p-6 xl:flex-row xl:items-center xl:justify-between"
-                >
-                  <div className="flex min-w-0 items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-lg font-bold text-blue-400">
-                      {business.name.charAt(0).toUpperCase()}
-                    </div>
+        {/* Empty state */}
+        {!loading && filteredBusinesses.length === 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-10 text-center">
+            <h2 className="text-lg font-semibold">
+              No businesses found
+            </h2>
 
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="truncate font-semibold">
-                          {business.name}
-                        </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              {search
+                ? "Try a different search."
+                : "Add your first business to get started."}
+            </p>
 
-                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/50">
+            {!search && (
+              <a
+                href="/admin/add-business"
+                className="mt-5 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-slate-200"
+              >
+                Add Business
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Business list */}
+        {!loading && filteredBusinesses.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left">
+                <thead className="border-b border-slate-800 bg-slate-950/60">
+                  <tr>
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Business
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Owner
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Location
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Type
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Theme
+                    </th>
+
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-800">
+                  {filteredBusinesses.map((business) => (
+                    <tr
+                      key={business.id}
+                      className="transition hover:bg-slate-800/30"
+                    >
+                      <td className="px-5 py-5">
+                        <div className="flex items-center gap-3">
+                          {business.logo_url ? (
+                            <img
+                              src={business.logo_url}
+                              alt={business.name}
+                              className="h-11 w-11 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-lg font-bold text-slate-300">
+                              {business.name
+                                ?.charAt(0)
+                                ?.toUpperCase() || "B"}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white">
+                              {business.name}
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-500">
+                              /{business.slug}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-5 text-sm text-slate-300">
+                        {business.owner_name || "—"}
+                      </td>
+
+                      <td className="px-5 py-5 text-sm text-slate-300">
+                        {business.location || "—"}
+                      </td>
+
+                      <td className="px-5 py-5">
+                        <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300">
                           {business.business_type || "Other"}
                         </span>
-                      </div>
+                      </td>
 
-                      <p className="mt-2 text-sm text-white/40">
-                        {business.location}
-                      </p>
+                      <td className="px-5 py-5">
+                        <span className="text-sm capitalize text-slate-300">
+                          {business.theme || "professional"}
+                        </span>
+                      </td>
 
-                      <p className="mt-1 text-xs text-white/25">
-                        /r/{business.slug}
-                      </p>
-                    </div>
-                  </div>
+                      <td className="px-5 py-5">
+                        <div className="flex justify-end gap-2">
+                          <a
+                            href={`/r/${business.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+                          >
+                            View
+                          </a>
 
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <a
-                      href={`/r/${business.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-blue-500/40 hover:text-white"
-                    >
-                      Review Page
-                    </a>
+                          <a
+                            href={`/qr/${business.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+                          >
+                            QR
+                          </a>
 
-                    <a
-                      href={`/qr/${business.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:border-blue-500/40 hover:text-white"
-                    >
-                      QR Code
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingBusiness({ ...business })
-                      }
-                      className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20"
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => deleteBusiness(business)}
-                      className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/10"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEdit(business)
+                            }
+                            className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-slate-200"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </section>
+          </div>
+        )}
       </div>
 
+      {/* Edit Modal */}
       {editingBusiness && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
-          <div className="mx-auto my-8 w-full max-w-3xl rounded-2xl border border-white/10 bg-[#11111a] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-5">
               <div>
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-xl font-bold">
                   Edit Business
                 </h2>
 
-                <p className="mt-1 text-sm text-white/40">
-                  Update business information.
+                <p className="mt-1 text-sm text-slate-500">
+                  Update business information and review settings.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setEditingBusiness(null)}
-                className="rounded-lg px-3 py-2 text-sm text-white/50 transition hover:bg-white/5 hover:text-white"
+                onClick={closeEdit}
+                disabled={saving}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-800 text-slate-400 transition hover:bg-slate-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Close
+                ×
               </button>
             </div>
 
-            <form
-              onSubmit={saveBusiness}
-              className="space-y-5 p-6"
-            >
-              <div className="grid gap-5 md:grid-cols-2">
-                <FormInput
-                  label="Business Name"
-                  value={editingBusiness.name}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      name: value,
-                    })
-                  }
-                  required
-                />
+            <div className="space-y-7 p-6">
+              {/* Basic information */}
+              <section>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Basic Information
+                </h3>
 
-                <FormInput
-                  label="Location"
-                  value={editingBusiness.location}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      location: value,
-                    })
-                  }
-                  required
-                />
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Business Name
+                    </label>
 
-                <FormInput
-                  label="WhatsApp"
-                  value={editingBusiness.whatsapp || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      whatsapp: value,
-                    })
-                  }
-                />
+                    <input
+                      type="text"
+                      value={editingBusiness.name || ""}
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          name: event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="Business name"
+                    />
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-sm text-white/60">
-                    Business Type
-                  </label>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Owner Name
+                    </label>
 
-                  <select
-                    value={
-                      editingBusiness.business_type || "Other"
-                    }
-                    onChange={(event) =>
-                      setEditingBusiness({
-                        ...editingBusiness,
-                        business_type: event.target.value,
-                      })
-                    }
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-blue-500"
-                  >
-                    {businessTypes
-                      .filter((type) => type !== "All")
-                      .map((type) => (
+                    <input
+                      type="text"
+                      value={
+                        editingBusiness.owner_name || ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          owner_name:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="Owner name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Location
+                    </label>
+
+                    <input
+                      type="text"
+                      value={
+                        editingBusiness.location || ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          location:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="Kathmandu, Nepal"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      WhatsApp
+                    </label>
+
+                    <input
+                      type="text"
+                      value={
+                        editingBusiness.whatsapp || ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          whatsapp:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="97798XXXXXXXX"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Business Type
+                    </label>
+
+                    <select
+                      value={
+                        editingBusiness.business_type ||
+                        "Other"
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          business_type:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none focus:border-slate-500"
+                    >
+                      {businessTypes.map((type) => (
                         <option
                           key={type}
                           value={type}
-                          className="bg-[#11111a]"
                         >
                           {type}
                         </option>
                       ))}
-                  </select>
-                </div>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-sm text-white/60">
-                    Review Page Theme
-                  </label>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Theme
+                    </label>
 
-                  <select
-                    value={
-                      editingBusiness.theme || "professional"
-                    }
-                    onChange={(event) =>
-                      setEditingBusiness({
-                        ...editingBusiness,
-                        theme: event.target.value,
-                      })
-                    }
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-blue-500"
-                  >
-                    <option value="professional">
-                      Modern Professional
-                    </option>
-                    <option value="warm">
-                      Warm & Elegant
-                    </option>
-                    <option value="minimal">
-                      Minimal Clean
-                    </option>
-                    <option value="luxury">
-                      Dark Luxury
-                    </option>
-                    <option value="nature">
-                      Nature Green
-                    </option>
-                    <option value="gradient">
-                      Gradient Modern
-                    </option>
-                    <option value="glass">
-                      Glassmorphism
-                    </option>
-                    <option value="vibrant">
-                      Bold & Vibrant
-                    </option>
-                    <option value="pastel">
-                      Soft Pastel
-                    </option>
-                    <option value="classic">
-                      Classic Elegant
-                    </option>
-                  </select>
+                    <select
+                      value={
+                        editingBusiness.theme ||
+                        "professional"
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          theme:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none focus:border-slate-500"
+                    >
+                      {themes.map((theme) => (
+                        <option
+                          key={theme}
+                          value={theme}
+                        >
+                          {theme.charAt(0).toUpperCase() +
+                            theme.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-<FormInput
-  label="Business Logo URL"
-  value={editingBusiness.logo_url || ""}
-  onChange={(value) =>
-    setEditingBusiness({
-      ...editingBusiness,
-      logo_url: value,
-    })
-  }
-/>
-                <FormInput
-                  label="Google Review URL"
+              </section>
+
+              {/* Branding */}
+              <section>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Branding
+                </h3>
+
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Logo URL
+                </label>
+
+                <input
+                  type="url"
                   value={
-                    editingBusiness.google_review_url || ""
+                    editingBusiness.logo_url || ""
                   }
-                  onChange={(value) =>
+                  onChange={(event) =>
                     setEditingBusiness({
                       ...editingBusiness,
-                      google_review_url: value,
+                      logo_url: event.target.value,
                     })
                   }
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                  placeholder="https://example.com/logo.png"
                 />
+              </section>
 
-                <FormInput
-                  label="Google Maps URL"
-                  value={editingBusiness.maps_url || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      maps_url: value,
-                    })
-                  }
-                />
+              {/* Review */}
+              <section>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Review & Google
+                </h3>
 
-                <FormInput
-                  label="Instagram URL"
-                  value={editingBusiness.instagram_url || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      instagram_url: value,
-                    })
-                  }
-                />
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Google Review URL
+                    </label>
 
-                <FormInput
-                  label="Facebook URL"
-                  value={editingBusiness.facebook_url || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      facebook_url: value,
-                    })
-                  }
-                />
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.google_review_url ||
+                        ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          google_review_url:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="https://g.page/r/..."
+                    />
 
-                <FormInput
-                  label="TikTok URL"
-                  value={editingBusiness.tiktok_url || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      tiktok_url: value,
-                    })
-                  }
-                />
+                    <p className="mt-2 text-xs text-slate-500">
+                      This link is used by the Google review
+                      button on the customer review page.
+                    </p>
+                  </div>
 
-                <FormInput
-                  label="Menu URL"
-                  value={editingBusiness.menu_url || ""}
-                  onChange={(value) =>
-                    setEditingBusiness({
-                      ...editingBusiness,
-                      menu_url: value,
-                    })
-                  }
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Google Maps URL
+                    </label>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-5 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setEditingBusiness(null)}
-                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-medium text-white/60 transition hover:bg-white/5 hover:text-white"
-                >
-                  Cancel
-                </button>
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.maps_url || ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          maps_url: event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="https://maps.google.com/..."
+                    />
+                  </div>
+                </div>
+              </section>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-blue-500 px-6 py-3 text-sm font-semibold transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving
-                    ? "Saving..."
-                    : "Save Changes"}
-                </button>
-              </div>
-            </form>
+              {/* Social */}
+              <section>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Social & Links
+                </h3>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Instagram URL
+                    </label>
+
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.instagram_url ||
+                        ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          instagram_url:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                      placeholder="https://instagram.com/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Facebook URL
+                    </label>
+
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.facebook_url ||
+                        ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          facebook_url:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                      placeholder="https://facebook.com/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      TikTok URL
+                    </label>
+
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.tiktok_url ||
+                        ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          tiktok_url:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                      placeholder="https://tiktok.com/@..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Menu URL
+                    </label>
+
+                    <input
+                      type="url"
+                      value={
+                        editingBusiness.menu_url || ""
+                      }
+                      onChange={(event) =>
+                        setEditingBusiness({
+                          ...editingBusiness,
+                          menu_url:
+                            event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                      placeholder="https://example.com/menu"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Slug */}
+              <section>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  System Information
+                </h3>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <div className="text-xs uppercase tracking-wider text-slate-500">
+                    Slug
+                  </div>
+
+                  <div className="mt-1 font-mono text-sm text-slate-300">
+                    {editingBusiness.slug}
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    The slug is not changed during editing so
+                    existing QR codes and review URLs remain
+                    stable.
+                  </p>
+                </div>
+              </section>
+            </div>
+
+            {/* Modal footer */}
+            <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-slate-800 bg-slate-950 px-6 py-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeEdit}
+                disabled={saving}
+                className="rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveBusiness}
+                disabled={saving}
+                className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving
+                  ? "Saving..."
+                  : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
       )}
     </main>
-  );
-}
-
-function FormInput({
-  label,
-  value,
-  onChange,
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm text-white/60">
-        {label}
-      </label>
-
-      <input
-        required={required}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none transition placeholder:text-white/20 focus:border-blue-500"
-      />
-    </div>
   );
 }

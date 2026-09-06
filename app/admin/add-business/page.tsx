@@ -40,6 +40,7 @@ function createSlug(name: string) {
 
 export default function AddBusinessPage() {
   const [businessName, setBusinessName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
   const [location, setLocation] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -54,6 +55,7 @@ export default function AddBusinessPage() {
     useState("");
 
   const [mapsUrl, setMapsUrl] = useState("");
+
   const [instagramUrl, setInstagramUrl] =
     useState("");
 
@@ -103,6 +105,7 @@ export default function AddBusinessPage() {
       .from("businesses")
       .insert({
         name: businessName.trim(),
+        owner_name: ownerName.trim() || null,
         slug,
         location: location.trim(),
         whatsapp: whatsapp.trim(),
@@ -131,6 +134,7 @@ export default function AddBusinessPage() {
     );
 
     setBusinessName("");
+    setOwnerName("");
     setLocation("");
     setWhatsapp("");
     setLogoUrl("");
@@ -193,7 +197,6 @@ export default function AddBusinessPage() {
           </div>
 
           <div className="grid gap-5 p-6 md:grid-cols-2">
-
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-zinc-300">
                 Business Name
@@ -222,6 +225,25 @@ export default function AddBusinessPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-zinc-300">
+                Business Owner Name
+              </label>
+
+              <input
+                value={ownerName}
+                onChange={(event) =>
+                  setOwnerName(event.target.value)
+                }
+                placeholder="Example: Nisha"
+                className="w-full rounded-xl border border-zinc-700 bg-[#09090b] px-4 py-3 text-sm outline-none placeholder:text-zinc-600 focus:border-blue-500"
+              />
+
+              <p className="mt-2 text-xs text-zinc-500">
+                Optional. This can be displayed on the review page.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-zinc-300">
                 Business Type
               </label>
 
@@ -239,8 +261,6 @@ export default function AddBusinessPage() {
                 ))}
               </select>
             </div>
-
-            {/* THEME SELECTOR */}
 
             <div>
               <label className="mb-2 block text-sm font-medium text-zinc-300">
@@ -321,7 +341,6 @@ export default function AddBusinessPage() {
                 Optional: paste a direct link to the business logo.
               </p>
             </div>
-
           </div>
 
           {/* GOOGLE & BUSINESS LINKS */}
