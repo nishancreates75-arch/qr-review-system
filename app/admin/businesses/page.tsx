@@ -66,27 +66,38 @@ export default function BusinessesPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase
-      .from("businesses")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("LOAD BUSINESSES ERROR:", error);
+      if (error) {
+        console.error("LOAD BUSINESSES ERROR:", error);
 
-      const errorMessage =
-        error.message ||
-        error.details ||
-        error.hint ||
-        "Unable to load businesses.";
+        const errorMessage =
+          error.message ||
+          error.details ||
+          error.hint ||
+          "Unable to load businesses.";
 
-      setMessage(`Error loading businesses: ${errorMessage}`);
+        setMessage(`Error loading businesses: ${errorMessage}`);
+        setBusinesses([]);
+        return;
+      }
+
+      setBusinesses((data || []) as Business[]);
+    } catch (error) {
+      console.error("UNEXPECTED LOAD ERROR:", error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to load businesses."
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setBusinesses((data || []) as Business[]);
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -113,6 +124,7 @@ export default function BusinessesPage() {
 
   function openEdit(business: Business) {
     setMessage("");
+
     setEditingBusiness({
       ...business,
     });
@@ -183,70 +195,317 @@ export default function BusinessesPage() {
         editingBusiness.logo_url?.trim() || null,
     };
 
-    console.log("UPDATING BUSINESS:", {
-      id: editingBusiness.id,
-      data: updateData,
-    });
+    console.log("=================================");
+    console.log("STARTING BUSINESS UPDATE");
+    console.log("BUSINESS ID:", editingBusiness.id);
+    console.log("UPDATE DATA:", updateData);
+    console.log("=================================");
 
-    /*
-     * IMPORTANT:
-     *
-     * Do NOT use:
-     *
-     * .select()
-     * .single()
-     *
-     * here.
-     *
-     * The previous version failed with:
-     *
-     * PGRST116
-     * "The result contains 0 rows"
-     *
-     * The dashboard only needs to perform the update.
-     * After that, we reload the businesses from Supabase.
-     */
+    try {
+      /*
+       * STEP 1
+       *
+       * Confirm that the browser has an authenticated
+       * Supabase session.
+       */
 
-    const { error } = await supabase
-      .from("businesses")
-      .update(updateData)
-      .eq("id", editingBusiness.id);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (error) {
-      const errorMessage =
-        error.message ||
-        error.details ||
-        error.hint ||
-        "Unknown Supabase error";
+      console.log("CURRENT SUPABASE USER:", user);
 
-      const errorCode =
-        error.code || "NO_CODE";
+      if (userError) {
+        console.error("AUTH CHECK ERROR:", userError);
 
-      console.error(
-        "UPDATE BUSINESS FAILED",
-        errorMessage,
-        errorCode,
-        error.details,
-        error.hint
+        setMessage(
+          `Authentication error: ${
+            userError.message || "Unable to verify your session."
+          }`
+        );
+
+        return;
+      }
+
+      if (!user) {
+        console.error("NO AUTHENTICATED USER");
+
+        setMessage(
+          "You are not authenticated. Please log in again."
+        );
+
+        return;
+      }
+
+      /*
+       * STEP 2
+       *
+       * Perform the update.
+       *
+       * We intentionally do NOT use .single()
+       * because the previous implementation returned
+       * PGRST116 when no row was returned.
+       */
+
+      const { data: updateResult, error: updateError } =
+        await supabase
+          .from("businesses")
+          .update(updateData)
+          .eq("id", editingBusiness.id)
+          .select(
+            "id, name, owner_name, location, whatsapp, google_review_url, maps_url, instagram_url, facebook_url, tiktok_url, menu_url, business_type, theme, logo_url"
+          );
+
+      console.log("UPDATE RESPONSE:", {
+        data: updateResult,
+        error: updateError,
+      });
+
+      if (updateError) {
+        console.error(
+          "UPDATE BUSINESS FAILED:",
+          updateError
+        );
+
+        const errorMessage =
+          updateError.message ||
+          updateError.details ||
+          updateError.hint ||
+          "Unknown Supabase error";
+
+        setMessage(
+          `Update failed [${
+            updateError.code || "NO_CODE"
+          }]: ${errorMessage}`
+        );
+
+        return;
+      }
+
+      /*
+       * STEP 3
+       *
+       * Verify that Supabase actually returned the
+       * updated business.
+       */
+
+      if (!updateResult || updateResult.length === 0) {
+        console.error(
+          "UPDATE RETURNED ZERO ROWS"
+        );
+
+        setMessage(
+          "The update did not return the business. Your production Supabase session or database permissions may be blocking the update."
+        );
+
+        return;
+      }
+
+      const updatedBusiness = updateResult[0] as Business;
+
+      console.log(
+        "UPDATED BUSINESS RETURNED FROM SUPABASE:",
+        updatedBusiness
+      );
+
+      /*
+       * STEP 4
+       *
+       * Compare important fields returned by Supabase
+       * against what the user submitted.
+       */
+
+      const ownerMatches =
+        (updatedBusiness.owner_name || null) ===
+        (updateData.owner_name || null);
+
+      const themeMatches =
+        (updatedBusiness.theme || "professional") ===
+        (updateData.theme || "professional");
+
+      const nameMatches =
+        updatedBusiness.name === updateData.name;
+
+      const locationMatches =
+        updatedBusiness.location === updateData.location;
+
+      const businessTypeMatches =
+        (updatedBusiness.business_type || "Other") ===
+        (updateData.business_type || "Other");
+
+      console.log("UPDATE VERIFICATION:", {
+        ownerMatches,
+        themeMatches,
+        nameMatches,
+        locationMatches,
+        businessTypeMatches,
+      });
+
+      if (
+        !ownerMatches ||
+        !themeMatches ||
+        !nameMatches ||
+        !locationMatches ||
+        !businessTypeMatches
+      ) {
+        console.error(
+          "UPDATE VERIFICATION FAILED",
+          {
+            submitted: updateData,
+            returned: updatedBusiness,
+          }
+        );
+
+        setMessage(
+          "Supabase returned the business, but the saved values do not match your changes. The update was not confirmed."
+        );
+
+        return;
+      }
+
+      /*
+       * STEP 5
+       *
+       * Update the local list with the confirmed
+       * database result.
+       */
+
+      setBusinesses((currentBusinesses) =>
+        currentBusinesses.map((business) =>
+          business.id === updatedBusiness.id
+            ? {
+                ...business,
+                ...updatedBusiness,
+              }
+            : business
+        )
+      );
+
+      /*
+       * STEP 6
+       *
+       * Re-fetch the business directly from Supabase.
+       * This verifies that the value can actually be
+       * read back after the update.
+       */
+
+      const {
+        data: verifyBusiness,
+        error: verifyError,
+      } = await supabase
+        .from("businesses")
+        .select(
+          "id, name, owner_name, location, whatsapp, google_review_url, maps_url, instagram_url, facebook_url, tiktok_url, menu_url, business_type, theme, logo_url"
+        )
+        .eq("id", editingBusiness.id)
+        .maybeSingle();
+
+      console.log("DATABASE VERIFICATION RESPONSE:", {
+        data: verifyBusiness,
+        error: verifyError,
+      });
+
+      if (verifyError) {
+        console.error(
+          "DATABASE VERIFICATION FAILED:",
+          verifyError
+        );
+
+        setMessage(
+          `Update was performed, but verification failed: ${verifyError.message}`
+        );
+
+        return;
+      }
+
+      if (!verifyBusiness) {
+        console.error(
+          "DATABASE VERIFICATION RETURNED NO BUSINESS"
+        );
+
+        setMessage(
+          "Update was performed, but the business could not be read back from Supabase."
+        );
+
+        return;
+      }
+
+      /*
+       * STEP 7
+       *
+       * Final persistence check.
+       */
+
+      const verifiedOwnerMatches =
+        (verifyBusiness.owner_name || null) ===
+        (updateData.owner_name || null);
+
+      const verifiedThemeMatches =
+        (verifyBusiness.theme || "professional") ===
+        (updateData.theme || "professional");
+
+      console.log("FINAL DATABASE CHECK:", {
+        verifiedOwnerMatches,
+        verifiedThemeMatches,
+        ownerFromDatabase: verifyBusiness.owner_name,
+        themeFromDatabase: verifyBusiness.theme,
+      });
+
+      if (
+        !verifiedOwnerMatches ||
+        !verifiedThemeMatches
+      ) {
+        console.error(
+          "DATABASE PERSISTENCE CHECK FAILED"
+        );
+
+        setMessage(
+          "The database did not persist your changes. The old values are still being returned."
+        );
+
+        return;
+      }
+
+      /*
+       * Everything passed.
+       */
+
+      console.log(
+        "BUSINESS UPDATED AND VERIFIED SUCCESSFULLY:",
+        verifyBusiness
+      );
+
+      setBusinesses((currentBusinesses) =>
+        currentBusinesses.map((business) =>
+          business.id === verifyBusiness.id
+            ? {
+                ...business,
+                ...(verifyBusiness as Business),
+              }
+            : business
+        )
       );
 
       setMessage(
-        `Update failed [${errorCode}]: ${errorMessage}`
+        "Business updated and verified successfully."
       );
 
+      setEditingBusiness(null);
+    } catch (error) {
+      console.error(
+        "UNEXPECTED BUSINESS UPDATE ERROR:",
+        error
+      );
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while updating the business."
+      );
+    } finally {
       setSaving(false);
-      return;
     }
-
-    console.log("BUSINESS UPDATED SUCCESSFULLY");
-
-    setMessage("Business updated successfully.");
-
-    setEditingBusiness(null);
-
-    await loadBusinesses();
-
-    setSaving(false);
   }
 
   return (
@@ -305,7 +564,9 @@ export default function BusinessesPage() {
         {message && (
           <div
             className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
-              message.toLowerCase().includes("success")
+              message
+                .toLowerCase()
+                .includes("success")
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                 : "border-red-500/30 bg-red-500/10 text-red-300"
             }`}
