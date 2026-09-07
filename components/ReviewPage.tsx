@@ -379,6 +379,7 @@ function getTheme(theme?: string): ThemeConfig {
     case "professional":
     default:
       return {
+        layout: "classic",
         page: "bg-[#f4f7f5]",
         hero: "bg-[#123524]",
         heroGlow:
